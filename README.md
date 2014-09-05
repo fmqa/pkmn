@@ -1,6 +1,8 @@
 pkmn
 ====
 
+![Screenshot](status.png?raw=true "Screenshot")
+
 Minimal Pokemon-Like tilemap engine with C++11/SFML to experiment with spatial data structures and various design approaches.
 
 Current functionality:
