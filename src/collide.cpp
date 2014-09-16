@@ -1,86 +1,83 @@
 #include "collide.hpp"
 #include "tagged.hpp"
 
-static void collide_ordered(
-    const pkmn::composite &big, 
-    std::pair<pkmn::composite::const_iterator,
-              pkmn::composite::const_iterator> bigger, 
-    const pkmn::composite &small, 
-    std::pair<pkmn::composite::const_iterator,
-              pkmn::composite::const_iterator> smaller) 
-{
-    for (; bigger.first != bigger.second; ++bigger.first) {
-        sf::FloatRect rbig(
-            (pkmn::get<pkmn::geometry>(big) 
-                 ? pkmn::get<pkmn::geometry>(big)->getPosition()
-                 : sf::Vector2f(0.0f, 0.0f)) +
-            (pkmn::get<pkmn::movement>(big)
-                 ? pkmn::get<pkmn::movement>(big)->vector
-                 : sf::Vector2f(0.0f, 0.0f)),
-            sf::Vector2f(pkmn::unwrap<pkmn::sensor>(bigger.first).bounds.width,
-                         pkmn::unwrap<pkmn::sensor>(bigger.first).bounds.height));
+void pkmn::collide(const composite &left, const composite &right) {
+    auto big = std::make_pair(&left, equal_range<sensor>(left));
+    auto small = std::make_pair(&right, equal_range<sensor>(right));
+
+    if (big.second.first == big.second.second && small.second.first != small.second.second) {
+        std::swap(big, small);
+    }
+    
+    for (; big.second.first != big.second.second; ++big.second.first) {
+        sf::FloatRect bigrect;
         
-        rbig.left = std::round(rbig.left);
-        rbig.top = std::round(rbig.top);
-        rbig.width = std::round(rbig.width);
-        rbig.height = std::round(rbig.height);
+        if (auto geom = get<geometry>(*big.first)) {
+            bigrect.left += geom->getPosition().x;
+            bigrect.top += geom->getPosition().y;
+        }
         
-        if (smaller.first == smaller.second) {
-            sf::FloatRect rsmall(
-                (pkmn::get<pkmn::geometry>(small)
-                     ? pkmn::get<pkmn::geometry>(small)->getPosition()
-                     : sf::Vector2f(0.0f, 0.0f)) +
-                (pkmn::get<pkmn::movement>(small)
-                     ? pkmn::get<pkmn::movement>(small)->vector
-                     : sf::Vector2f(0.0f, 0.0f)),
-                sf::Vector2f(1.0f, 1.0f));
+        if (auto move = get<movement>(*big.first)) {
+            bigrect.left += move->vector.x;
+            bigrect.top += move->vector.y;
+        }
+        
+        bigrect.left += unwrap<sensor>(big.second.first).bounds.left;
+        bigrect.top += unwrap<sensor>(big.second.first).bounds.top;
+        bigrect.width += unwrap<sensor>(big.second.first).bounds.width;
+        bigrect.height += unwrap<sensor>(big.second.first).bounds.height;
+        
+        bigrect.left = std::round(bigrect.left);
+        bigrect.top = std::round(bigrect.top);
+        bigrect.width = std::round(bigrect.width);
+        bigrect.height = std::round(bigrect.height);
+        
+        sf::FloatRect smallrect;
+        
+        if (auto geom = get<geometry>(*small.first)) {
+            smallrect.left += geom->getPosition().x;
+            smallrect.top += geom->getPosition().y;
+        }
+        
+        if (auto move = get<movement>(*small.first)) {
+            smallrect.left += move->vector.x;
+            smallrect.top += move->vector.y;
+        }
+        
+        if (small.second.first == small.second.second) {
+            smallrect.width = 1.0f;
+            smallrect.height = 1.0f;
             
-            rsmall.left = std::round(rsmall.left);
-            rsmall.top = std::round(rsmall.top);
-            rsmall.width = std::round(rsmall.width);
-            rsmall.height = std::round(rsmall.height);
+            smallrect.left = std::round(smallrect.left);
+            smallrect.top = std::round(smallrect.top);
             
-            if (rbig.intersects(rsmall) && pkmn::unwrap<pkmn::sensor>(bigger.first).action) {
-                pkmn::unwrap<pkmn::sensor>(bigger.first).action(small);
+            if (bigrect.intersects(smallrect) && unwrap<sensor>(big.second.first).action) {
+                unwrap<sensor>(big.second.first).action(*small.first);
             }
         } else {
-            for (auto cursor = smaller.first; cursor != smaller.second; ++cursor) {
-                sf::FloatRect rsmall(
-                    (pkmn::get<pkmn::geometry>(small) 
-                        ? pkmn::get<pkmn::geometry>(small)->getPosition()
-                        : sf::Vector2f(0.0f, 0.0f)) +
-                    (pkmn::get<pkmn::movement>(small)
-                        ? pkmn::get<pkmn::movement>(small)->vector
-                        : sf::Vector2f(0.0f, 0.0f)),
-                    sf::Vector2f(pkmn::unwrap<pkmn::sensor>(cursor).bounds.width,
-                                 pkmn::unwrap<pkmn::sensor>(cursor).bounds.height));
+            for (auto cursor = small.second.first; cursor != small.second.second; ++cursor) {
+                sf::FloatRect sensorrect(smallrect);
                 
-                rsmall.left = std::round(rsmall.left);
-                rsmall.top = std::round(rsmall.top);
-                rsmall.width = std::round(rsmall.width);
-                rsmall.height = std::round(rsmall.height);
+                sensorrect.left += unwrap<sensor>(cursor).bounds.left;
+                sensorrect.top += unwrap<sensor>(cursor).bounds.top;
+                sensorrect.width += unwrap<sensor>(cursor).bounds.width;
+                sensorrect.height += unwrap<sensor>(cursor).bounds.height;
                 
-                if (rbig.intersects(rsmall)) {
-                    if (pkmn::unwrap<pkmn::sensor>(bigger.first).action) {
-                        pkmn::unwrap<pkmn::sensor>(bigger.first).action(small);
+                sensorrect.left = std::round(sensorrect.left);
+                sensorrect.height = std::round(sensorrect.height);
+                sensorrect.width = std::round(sensorrect.width);
+                sensorrect.height = std::round(sensorrect.height);
+                
+                if (bigrect.intersects(sensorrect)) {
+                    if (unwrap<sensor>(big.second.first).action) {
+                        unwrap<sensor>(big.second.first).action(*small.first);
                     }
-                    if (pkmn::unwrap<pkmn::sensor>(cursor).action) {
-                        pkmn::unwrap<pkmn::sensor>(cursor).action(big);
+                    if (unwrap<sensor>(cursor).action) {
+                        unwrap<sensor>(cursor).action(*big.first);
                     }
                 }
             }
         }
-    }
-}
-
-void pkmn::collide(const composite &left, const composite &right) {
-    auto big = equal_range<pkmn::sensor>(left);
-    auto small = equal_range<pkmn::sensor>(right);
-    
-    if (std::distance(big.first, big.second) < std::distance(small.first, small.second)) {
-        collide_ordered(right, small, left, big);
-    } else {
-        collide_ordered(left, big, right, small);
     }
 }
 
